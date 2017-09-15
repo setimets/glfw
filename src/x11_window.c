@@ -614,13 +614,25 @@ static GLFWbool createNativeWindow(_GLFWwindow* window,
     updateNormalHints(window, wndconfig->width, wndconfig->height);
 
     // Set ICCCM WM_CLASS property
-    // HACK: Until a mechanism for specifying the application name is added, the
-    //       initial window title is used as the window class name
-    if (strlen(wndconfig->title))
     {
         XClassHint* hint = XAllocClassHint();
-        hint->res_name = (char*) wndconfig->title;
-        hint->res_class = (char*) wndconfig->title;
+
+        if (strlen(_glfw.hints.init.x11.className) &&
+            strlen(_glfw.hints.init.x11.classClass))
+        {
+            hint->res_name = (char*) _glfw.hints.init.x11.className;
+            hint->res_class = (char*) _glfw.hints.init.x11.classClass;
+        }
+        else if (strlen(wndconfig->title))
+        {
+            hint->res_name = (char*) wndconfig->title;
+            hint->res_class = (char*) wndconfig->title;
+        }
+        else
+        {
+            hint->res_name = (char*) "glfw-application";
+            hint->res_class = (char*) "GLFW-Application";
+        }
 
         XSetClassHint(_glfw.x11.display, window->x11.handle, hint);
         XFree(hint);
@@ -659,10 +671,16 @@ static GLFWbool createNativeWindow(_GLFWwindow* window,
 static Atom writeTargetToProperty(const XSelectionRequestEvent* request)
 {
     int i;
+    char* selectionString = NULL;
     const Atom formats[] = { _glfw.x11.UTF8_STRING,
                              _glfw.x11.COMPOUND_STRING,
                              XA_STRING };
     const int formatCount = sizeof(formats) / sizeof(formats[0]);
+
+    if (request->selection == _glfw.x11.PRIMARY)
+        selectionString = _glfw.x11.primarySelectionString;
+    else
+        selectionString = _glfw.x11.clipboardString;
 
     if (request->property == None)
     {
@@ -723,8 +741,8 @@ static Atom writeTargetToProperty(const XSelectionRequestEvent* request)
                                 targets[i],
                                 8,
                                 PropModeReplace,
-                                (unsigned char*) _glfw.x11.clipboardString,
-                                strlen(_glfw.x11.clipboardString));
+                                (unsigned char *) selectionString,
+                                strlen(selectionString));
             }
             else
                 targets[i + 1] = None;
@@ -775,8 +793,8 @@ static Atom writeTargetToProperty(const XSelectionRequestEvent* request)
                             request->target,
                             8,
                             PropModeReplace,
-                            (unsigned char*) _glfw.x11.clipboardString,
-                            strlen(_glfw.x11.clipboardString));
+                            (unsigned char *) selectionString,
+                            strlen(selectionString));
 
             return request->property;
         }
@@ -789,8 +807,16 @@ static Atom writeTargetToProperty(const XSelectionRequestEvent* request)
 
 static void handleSelectionClear(XEvent* event)
 {
-    free(_glfw.x11.clipboardString);
-    _glfw.x11.clipboardString = NULL;
+    if (event->xselectionclear.selection == _glfw.x11.PRIMARY)
+    {
+        free(_glfw.x11.primarySelectionString);
+        _glfw.x11.primarySelectionString = NULL;
+    }
+    else
+    {
+        free(_glfw.x11.clipboardString);
+        _glfw.x11.clipboardString = NULL;
+    }
 }
 
 static void handleSelectionRequest(XEvent* event)
@@ -809,6 +835,82 @@ static void handleSelectionRequest(XEvent* event)
     reply.xselection.time = request->time;
 
     XSendEvent(_glfw.x11.display, request->requestor, False, 0, &reply);
+}
+
+static const char* getSelectionString(Atom selection)
+{
+    size_t i;
+    char** selectionString = NULL;
+    const Atom formats[] = { _glfw.x11.UTF8_STRING,
+                             _glfw.x11.COMPOUND_STRING,
+                             XA_STRING };
+    const size_t formatCount = sizeof(formats) / sizeof(formats[0]);
+
+    if (selection == _glfw.x11.PRIMARY)
+        selectionString = &_glfw.x11.primarySelectionString;
+    else
+        selectionString = &_glfw.x11.clipboardString;
+
+    if (XGetSelectionOwner(_glfw.x11.display, selection) ==
+        _glfw.x11.helperWindowHandle)
+    {
+        // Instead of doing a large number of X round-trips just to put this
+        // string into a window property and then read it back, just return it
+        return *selectionString;
+    }
+
+    free(*selectionString);
+    *selectionString = NULL;
+
+    for (i = 0;  i < formatCount;  i++)
+    {
+        char* data;
+        XEvent event;
+
+        XConvertSelection(_glfw.x11.display,
+                          selection,
+                          formats[i],
+                          _glfw.x11.GLFW_SELECTION,
+                          _glfw.x11.helperWindowHandle,
+                          CurrentTime);
+
+        while (!XCheckTypedWindowEvent(_glfw.x11.display,
+                                       _glfw.x11.helperWindowHandle,
+                                       SelectionNotify,
+                                       &event))
+        {
+            waitForEvent(NULL);
+        }
+
+        if (event.xselection.property == None)
+            continue;
+
+        if (_glfwGetWindowPropertyX11(event.xselection.requestor,
+                                      event.xselection.property,
+                                      event.xselection.target,
+                                      (unsigned char**) &data))
+        {
+            *selectionString = strdup(data);
+        }
+
+        if (data)
+            XFree(data);
+
+        XDeleteProperty(_glfw.x11.display,
+                        event.xselection.requestor,
+                        event.xselection.property);
+
+        if (*selectionString)
+            break;
+    }
+
+    if (!*selectionString)
+    {
+        _glfwInputError(GLFW_FORMAT_UNAVAILABLE,
+                        "X11: Failed to convert clipboard to string");
+    }
+
+    return *selectionString;
 }
 
 // Make the specified window and its video mode active on its monitor
@@ -2560,72 +2662,7 @@ void _glfwPlatformSetClipboardString(_GLFWwindow* window, const char* string)
 
 const char* _glfwPlatformGetClipboardString(_GLFWwindow* window)
 {
-    size_t i;
-    const Atom formats[] = { _glfw.x11.UTF8_STRING,
-                             _glfw.x11.COMPOUND_STRING,
-                             XA_STRING };
-    const size_t formatCount = sizeof(formats) / sizeof(formats[0]);
-
-    if (XGetSelectionOwner(_glfw.x11.display, _glfw.x11.CLIPBOARD) ==
-        _glfw.x11.helperWindowHandle)
-    {
-        // Instead of doing a large number of X round-trips just to put this
-        // string into a window property and then read it back, just return it
-        return _glfw.x11.clipboardString;
-    }
-
-    free(_glfw.x11.clipboardString);
-    _glfw.x11.clipboardString = NULL;
-
-    for (i = 0;  i < formatCount;  i++)
-    {
-        char* data;
-        XEvent event;
-
-        XConvertSelection(_glfw.x11.display,
-                          _glfw.x11.CLIPBOARD,
-                          formats[i],
-                          _glfw.x11.GLFW_SELECTION,
-                          _glfw.x11.helperWindowHandle,
-                          CurrentTime);
-
-        while (!XCheckTypedWindowEvent(_glfw.x11.display,
-                                       _glfw.x11.helperWindowHandle,
-                                       SelectionNotify,
-                                       &event))
-        {
-            waitForEvent(NULL);
-        }
-
-        if (event.xselection.property == None)
-            continue;
-
-        if (_glfwGetWindowPropertyX11(event.xselection.requestor,
-                                      event.xselection.property,
-                                      event.xselection.target,
-                                      (unsigned char**) &data))
-        {
-            _glfw.x11.clipboardString = strdup(data);
-        }
-
-        if (data)
-            XFree(data);
-
-        XDeleteProperty(_glfw.x11.display,
-                        event.xselection.requestor,
-                        event.xselection.property);
-
-        if (_glfw.x11.clipboardString)
-            break;
-    }
-
-    if (_glfw.x11.clipboardString == NULL)
-    {
-        _glfwInputError(GLFW_FORMAT_UNAVAILABLE,
-                        "X11: Failed to convert clipboard to string");
-    }
-
-    return _glfw.x11.clipboardString;
+    return getSelectionString(_glfw.x11.CLIPBOARD);
 }
 
 void _glfwPlatformGetRequiredInstanceExtensions(char** extensions)
@@ -2668,8 +2705,7 @@ int _glfwPlatformGetPhysicalDevicePresentationSupport(VkInstance instance,
             return GLFW_FALSE;
         }
 
-        xcb_connection_t* connection =
-            _glfw.x11.x11xcb.XGetXCBConnection(_glfw.x11.display);
+        xcb_connection_t* connection = XGetXCBConnection(_glfw.x11.display);
         if (!connection)
         {
             _glfwInputError(GLFW_PLATFORM_ERROR,
@@ -2712,8 +2748,7 @@ VkResult _glfwPlatformCreateWindowSurface(VkInstance instance,
         VkXcbSurfaceCreateInfoKHR sci;
         PFN_vkCreateXcbSurfaceKHR vkCreateXcbSurfaceKHR;
 
-        xcb_connection_t* connection =
-            _glfw.x11.x11xcb.XGetXCBConnection(_glfw.x11.display);
+        xcb_connection_t* connection = XGetXCBConnection(_glfw.x11.display);
         if (!connection)
         {
             _glfwInputError(GLFW_PLATFORM_ERROR,
@@ -2793,5 +2828,31 @@ GLFWAPI Window glfwGetX11Window(GLFWwindow* handle)
     _GLFWwindow* window = (_GLFWwindow*) handle;
     _GLFW_REQUIRE_INIT_OR_RETURN(None);
     return window->x11.handle;
+}
+
+GLFWAPI void glfwSetX11SelectionString(const char* string)
+{
+    _GLFW_REQUIRE_INIT();
+
+    free(_glfw.x11.primarySelectionString);
+    _glfw.x11.primarySelectionString = strdup(string);
+
+    XSetSelectionOwner(_glfw.x11.display,
+                       _glfw.x11.PRIMARY,
+                       _glfw.x11.helperWindowHandle,
+                       CurrentTime);
+
+    if (XGetSelectionOwner(_glfw.x11.display, _glfw.x11.PRIMARY) !=
+        _glfw.x11.helperWindowHandle)
+    {
+        _glfwInputError(GLFW_PLATFORM_ERROR,
+                        "X11: Failed to become owner of primary selection");
+    }
+}
+
+GLFWAPI const char* glfwGetX11SelectionString(void)
+{
+    _GLFW_REQUIRE_INIT_OR_RETURN(NULL);
+    return getSelectionString(_glfw.x11.PRIMARY);
 }
 

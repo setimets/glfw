@@ -124,9 +124,9 @@ static GLFWbool loadLibraries(void)
     _glfw.win32.dwmapi.instance = LoadLibraryA("dwmapi.dll");
     if (_glfw.win32.dwmapi.instance)
     {
-        _glfw.win32.dwmapi.DwmIsCompositionEnabled = (PFN_DwmIsCompositionEnabled)
+        _glfw.win32.dwmapi.IsCompositionEnabled = (PFN_DwmIsCompositionEnabled)
             GetProcAddress(_glfw.win32.dwmapi.instance, "DwmIsCompositionEnabled");
-        _glfw.win32.dwmapi.DwmFlush = (PFN_DwmFlush)
+        _glfw.win32.dwmapi.Flush = (PFN_DwmFlush)
             GetProcAddress(_glfw.win32.dwmapi.instance, "DwmFlush");
     }
 
@@ -357,19 +357,19 @@ static HWND createHelperWindow(void)
 WCHAR* _glfwCreateWideStringFromUTF8Win32(const char* source)
 {
     WCHAR* target;
-    int length;
+    int count;
 
-    length = MultiByteToWideChar(CP_UTF8, 0, source, -1, NULL, 0);
-    if (!length)
+    count = MultiByteToWideChar(CP_UTF8, 0, source, -1, NULL, 0);
+    if (!count)
     {
         _glfwInputErrorWin32(GLFW_PLATFORM_ERROR,
                              "Win32: Failed to convert string from UTF-8");
         return NULL;
     }
 
-    target = calloc(length, sizeof(WCHAR));
+    target = calloc(count, sizeof(WCHAR));
 
-    if (!MultiByteToWideChar(CP_UTF8, 0, source, -1, target, length))
+    if (!MultiByteToWideChar(CP_UTF8, 0, source, -1, target, count))
     {
         _glfwInputErrorWin32(GLFW_PLATFORM_ERROR,
                              "Win32: Failed to convert string from UTF-8");
@@ -385,19 +385,19 @@ WCHAR* _glfwCreateWideStringFromUTF8Win32(const char* source)
 char* _glfwCreateUTF8FromWideStringWin32(const WCHAR* source)
 {
     char* target;
-    int length;
+    int size;
 
-    length = WideCharToMultiByte(CP_UTF8, 0, source, -1, NULL, 0, NULL, NULL);
-    if (!length)
+    size = WideCharToMultiByte(CP_UTF8, 0, source, -1, NULL, 0, NULL, NULL);
+    if (!size)
     {
         _glfwInputErrorWin32(GLFW_PLATFORM_ERROR,
                              "Win32: Failed to convert string to UTF-8");
         return NULL;
     }
 
-    target = calloc(length, 1);
+    target = calloc(size, 1);
 
-    if (!WideCharToMultiByte(CP_UTF8, 0, source, -1, target, length, NULL, NULL))
+    if (!WideCharToMultiByte(CP_UTF8, 0, source, -1, target, size, NULL, NULL))
     {
         _glfwInputErrorWin32(GLFW_PLATFORM_ERROR,
                              "Win32: Failed to convert string to UTF-8");
@@ -412,8 +412,8 @@ char* _glfwCreateUTF8FromWideStringWin32(const WCHAR* source)
 //
 void _glfwInputErrorWin32(int error, const char* description)
 {
-    WCHAR buffer[1024] = L"";
-    char message[2048] = "";
+    WCHAR buffer[_GLFW_MESSAGE_SIZE] = L"";
+    char message[_GLFW_MESSAGE_SIZE] = "";
 
     FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
                        FORMAT_MESSAGE_IGNORE_INSERTS |
@@ -427,6 +427,60 @@ void _glfwInputErrorWin32(int error, const char* description)
     WideCharToMultiByte(CP_UTF8, 0, buffer, -1, message, sizeof(message), NULL, NULL);
 
     _glfwInputError(error, "%s: %s", description, message);
+}
+
+// Updates key names according to the current keyboard layout
+//
+void _glfwUpdateKeyNamesWin32(void)
+{
+    int key;
+    BYTE state[256] = {0};
+
+    memset(_glfw.win32.keynames, 0, sizeof(_glfw.win32.keynames));
+
+    for (key = GLFW_KEY_SPACE;  key <= GLFW_KEY_LAST;  key++)
+    {
+        UINT vk;
+        int scancode, length;
+        WCHAR chars[16];
+
+        scancode = _glfw.win32.scancodes[key];
+        if (scancode == -1)
+            continue;
+
+        if (key >= GLFW_KEY_KP_0 && key <= GLFW_KEY_KP_ADD)
+        {
+            const UINT vks[] = {
+                VK_NUMPAD0,  VK_NUMPAD1,  VK_NUMPAD2, VK_NUMPAD3,
+                VK_NUMPAD4,  VK_NUMPAD5,  VK_NUMPAD6, VK_NUMPAD7,
+                VK_NUMPAD8,  VK_NUMPAD9,  VK_DECIMAL, VK_DIVIDE,
+                VK_MULTIPLY, VK_SUBTRACT, VK_ADD
+            };
+
+            vk = vks[key - GLFW_KEY_KP_0];
+        }
+        else
+            vk = MapVirtualKey(scancode, MAPVK_VSC_TO_VK);
+
+        length = ToUnicode(vk, scancode, state,
+                           chars, sizeof(chars) / sizeof(WCHAR),
+                           0);
+
+        if (length == -1)
+        {
+            length = ToUnicode(vk, scancode, state,
+                               chars, sizeof(chars) / sizeof(WCHAR),
+                               0);
+        }
+
+        if (length < 1)
+            continue;
+
+        WideCharToMultiByte(CP_UTF8, 0, chars, 1,
+                            _glfw.win32.keynames[key],
+                            sizeof(_glfw.win32.keynames[key]),
+                            NULL, NULL);
+    }
 }
 
 
@@ -448,6 +502,7 @@ int _glfwPlatformInit(void)
         return GLFW_FALSE;
 
     createKeyTables();
+    _glfwUpdateKeyNamesWin32();
 
     if (_glfw_SetProcessDpiAwareness)
         _glfw_SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
