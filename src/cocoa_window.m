@@ -88,43 +88,19 @@ static GLFWbool cursorInClientArea(_GLFWwindow* window)
     return [window->ns.view mouse:pos inRect:[window->ns.view frame]];
 }
 
-// Hides the cursor if not already hidden
-//
-static void hideCursor(_GLFWwindow* window)
-{
-    if (!_glfw.ns.cursorHidden)
-    {
-        [NSCursor hide];
-        _glfw.ns.cursorHidden = GLFW_TRUE;
-    }
-}
-
-// Shows the cursor if not already shown
-//
-static void showCursor(_GLFWwindow* window)
-{
-    if (_glfw.ns.cursorHidden)
-    {
-        [NSCursor unhide];
-        _glfw.ns.cursorHidden = GLFW_FALSE;
-    }
-}
-
 // Updates the cursor image according to its cursor mode
 //
 static void updateCursorImage(_GLFWwindow* window)
 {
     if (window->cursorMode == GLFW_CURSOR_NORMAL)
     {
-        showCursor(window);
-
         if (window->cursor)
             [(NSCursor*) window->cursor->ns.object set];
         else
             [[NSCursor arrowCursor] set];
     }
     else
-        hideCursor(window);
+        [(NSCursor*) _glfw.ns.cursor set];
 }
 
 // Transforms the specified y-coordinate between the CG display and NS screen
@@ -387,6 +363,20 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 
 @implementation GLFWContentView
 
++ (void)initialize
+{
+    if (self == [GLFWContentView class])
+    {
+        if (_glfw.ns.cursor == nil)
+        {
+            NSImage* data = [[NSImage alloc] initWithSize:NSMakeSize(16, 16)];
+            _glfw.ns.cursor = [[NSCursor alloc] initWithImage:data
+                                                      hotSpot:NSZeroPoint];
+            [data release];
+        }
+    }
+}
+
 - (id)initWithGlfwWindow:(_GLFWwindow *)initWindow
 {
     self = [super init];
@@ -532,17 +522,11 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 
 - (void)mouseExited:(NSEvent *)event
 {
-    if (window->cursorMode == GLFW_CURSOR_HIDDEN)
-        showCursor(window);
-
     _glfwInputCursorEnter(window, GLFW_FALSE);
 }
 
 - (void)mouseEntered:(NSEvent *)event
 {
-    if (window->cursorMode == GLFW_CURSOR_HIDDEN)
-        hideCursor(window);
-
     _glfwInputCursorEnter(window, GLFW_TRUE);
 }
 
@@ -714,11 +698,10 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
         selectedRange:(NSRange)selectedRange
      replacementRange:(NSRange)replacementRange
 {
-    [markedText release];
     if ([string isKindOfClass:[NSAttributedString class]])
-        markedText = [[NSMutableAttributedString alloc] initWithAttributedString:string];
+        [markedText initWithAttributedString:string];
     else
-        markedText = [[NSMutableAttributedString alloc] initWithString:string];
+        [markedText initWithString:string];
 }
 
 - (void)unmarkText
@@ -998,13 +981,6 @@ static GLFWbool initializeAppKit(void)
 
     [NSApp setDelegate:_glfw.ns.delegate];
     [NSApp run];
-
-    // Press and Hold prevents some keys from emitting repeated characters
-    NSDictionary* defaults =
-        [NSDictionary dictionaryWithObjectsAndKeys:[NSNumber numberWithBool:NO],
-                                                   @"ApplePressAndHoldEnabled",
-                                                   nil];
-    [[NSUserDefaults standardUserDefaults] registerDefaults:defaults];
 
     return GLFW_TRUE;
 }

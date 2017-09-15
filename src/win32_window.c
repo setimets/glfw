@@ -111,7 +111,7 @@ static HICON createIcon(const GLFWimage* image,
     unsigned char* source = image->pixels;
 
     ZeroMemory(&bi, sizeof(bi));
-    bi.bV5Size        = sizeof(bi);
+    bi.bV5Size        = sizeof(BITMAPV5HEADER);
     bi.bV5Width       = image->width;
     bi.bV5Height      = -image->height;
     bi.bV5Planes      = 1;
@@ -495,46 +495,9 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg,
 
     switch (uMsg)
     {
-        case WM_MOUSEACTIVATE:
-        {
-            // HACK: Postpone cursor disabling when the window was activated by
-            //       clicking a caption button
-            if (HIWORD(lParam) == WM_LBUTTONDOWN)
-            {
-                if (LOWORD(lParam) == HTCLOSE ||
-                    LOWORD(lParam) == HTMINBUTTON ||
-                    LOWORD(lParam) == HTMAXBUTTON)
-                {
-                    window->win32.frameAction = GLFW_TRUE;
-                }
-            }
-
-            break;
-        }
-
-        case WM_CAPTURECHANGED:
-        {
-            // HACK: Disable the cursor once the caption button action has been
-            //       completed or cancelled
-            if (lParam == 0 && window->win32.frameAction)
-            {
-                if (window->cursorMode == GLFW_CURSOR_DISABLED)
-                    _glfwPlatformSetCursorMode(window, GLFW_CURSOR_DISABLED);
-
-                window->win32.frameAction = GLFW_FALSE;
-            }
-
-            break;
-        }
-
         case WM_SETFOCUS:
         {
             _glfwInputWindowFocus(window, GLFW_TRUE);
-
-            // HACK: Do not disable cursor while the user is interacting with
-            //       a caption button
-            if (window->win32.frameAction)
-                break;
 
             if (window->cursorMode == GLFW_CURSOR_DISABLED)
                 _glfwPlatformSetCursorMode(window, GLFW_CURSOR_DISABLED);
@@ -582,12 +545,6 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg,
         {
             _glfwInputWindowCloseRequest(window);
             return 0;
-        }
-
-        case WM_INPUTLANGCHANGE:
-        {
-            _glfwUpdateKeyNamesWin32();
-            break;
         }
 
         case WM_CHAR:
@@ -801,8 +758,6 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg,
         case WM_ENTERSIZEMOVE:
         case WM_ENTERMENULOOP:
         {
-            // HACK: Postpone cursor disabling while the user is moving or
-            //       resizing the window or using the menu
             if (window->cursorMode == GLFW_CURSOR_DISABLED)
                 _glfwPlatformSetCursorMode(window, GLFW_CURSOR_NORMAL);
 
@@ -812,8 +767,6 @@ static LRESULT CALLBACK windowProc(HWND hWnd, UINT uMsg,
         case WM_EXITSIZEMOVE:
         case WM_EXITMENULOOP:
         {
-            // HACK: Disable the cursor once the user is done moving or
-            //       resizing the window or using the menu
             if (window->cursorMode == GLFW_CURSOR_DISABLED)
                 _glfwPlatformSetCursorMode(window, GLFW_CURSOR_DISABLED);
 
@@ -1658,7 +1611,20 @@ void _glfwPlatformSetCursorMode(_GLFWwindow* window, int mode)
 
 const char* _glfwPlatformGetScancodeName(int scancode)
 {
-    return _glfw.win32.keynames[_glfw.win32.keycodes[scancode]];
+    WCHAR name[16];
+
+    if (!GetKeyNameTextW(scancode << 16, name, sizeof(name) / sizeof(WCHAR)))
+        return NULL;
+
+    if (!WideCharToMultiByte(CP_UTF8, 0, name, -1,
+                             _glfw.win32.keyName,
+                             sizeof(_glfw.win32.keyName),
+                             NULL, NULL))
+    {
+        return NULL;
+    }
+
+    return _glfw.win32.keyName;
 }
 
 int _glfwPlatformGetKeyScancode(int key)

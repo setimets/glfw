@@ -233,15 +233,15 @@ static int choosePixelFormat(_GLFWwindow* window,
 //
 static GLFWbool isCompositionEnabled(void)
 {
-    if (_glfw.win32.dwmapi.instance)
-    {
-        BOOL enabled;
+    BOOL enabled;
 
-        if (DwmIsCompositionEnabled(&enabled) == S_OK)
-            return enabled;
-    }
+    if (!_glfw_DwmIsCompositionEnabled)
+        return FALSE;
 
-    return FALSE;
+    if (_glfw_DwmIsCompositionEnabled(&enabled) != S_OK)
+        return FALSE;
+
+    return enabled;
 }
 
 static void makeContextCurrentWGL(_GLFWwindow* window)
@@ -276,7 +276,7 @@ static void swapBuffersWGL(_GLFWwindow* window)
     {
         int count = abs(window->context.wgl.interval);
         while (count--)
-            DwmFlush();
+            _glfw_DwmFlush();
     }
 
     SwapBuffers(window->context.wgl.dc);

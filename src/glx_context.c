@@ -244,9 +244,7 @@ GLFWbool _glfwInitGLX(void)
     int i;
     const char* sonames[] =
     {
-#if defined(_GLFW_GLX_LIBRARY)
-        _GLFW_GLX_LIBRARY,
-#elif defined(__CYGWIN__)
+#if defined(__CYGWIN__)
         "libGL-1.so",
 #else
         "libGL.so.1",

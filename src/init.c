@@ -32,7 +32,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
-#include <assert.h>
 
 
 // The global variables below comprise all global data in GLFW.
@@ -49,14 +48,10 @@ static _GLFWerror _glfwMainThreadError;
 static GLFWerrorfun _glfwErrorCallback;
 static _GLFWinitconfig _glfwInitHints =
 {
-    GLFW_TRUE,      // hat buttons
+    GLFW_TRUE, // hat buttons
     {
-        GLFW_TRUE,  // macOS menu bar
-        GLFW_TRUE   // macOS bundle chdir
-    },
-    {
-        "",         // X11 WM_CLASS name
-        ""          // X11 WM_CLASS class
+        GLFW_TRUE, // menubar
+        GLFW_TRUE  // chdir
     }
 };
 
@@ -148,7 +143,7 @@ static void terminate(void)
 void _glfwInputError(int code, const char* format, ...)
 {
     _GLFWerror* error;
-    char description[_GLFW_MESSAGE_SIZE];
+    char description[1024];
 
     if (format)
     {
@@ -248,28 +243,7 @@ GLFWAPI void glfwInitHint(int hint, int value)
             return;
     }
 
-    _glfwInputError(GLFW_INVALID_ENUM,
-                    "Invalid integer type init hint 0x%08X", hint);
-}
-
-GLFWAPI void glfwInitHintString(int hint, const char* value)
-{
-    assert(value != NULL);
-
-    switch (hint)
-    {
-        case GLFW_X11_WM_CLASS_NAME:
-            strncpy(_glfwInitHints.x11.className, value,
-                    sizeof(_glfwInitHints.x11.className) - 1);
-            break;
-        case GLFW_X11_WM_CLASS_CLASS:
-            strncpy(_glfwInitHints.x11.classClass, value,
-                    sizeof(_glfwInitHints.x11.classClass) - 1);
-            break;
-    }
-
-    _glfwInputError(GLFW_INVALID_ENUM,
-                    "Invalid string type init hint 0x%08X", hint);
+    _glfwInputError(GLFW_INVALID_ENUM, "Invalid init hint 0x%08X", hint);
 }
 
 GLFWAPI void glfwGetVersion(int* major, int* minor, int* rev)

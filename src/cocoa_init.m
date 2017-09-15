@@ -352,6 +352,9 @@ void _glfwPlatformTerminate(void)
         _glfw.ns.listener = nil;
     }
 
+    [_glfw.ns.cursor release];
+    _glfw.ns.cursor = nil;
+
     free(_glfw.ns.clipboardString);
 
     _glfwTerminateNSGL();

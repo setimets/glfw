@@ -354,10 +354,10 @@ GLFWAPI int glfwGetInputMode(GLFWwindow* handle, int mode)
             return window->stickyKeys;
         case GLFW_STICKY_MOUSE_BUTTONS:
             return window->stickyMouseButtons;
+        default:
+            _glfwInputError(GLFW_INVALID_ENUM, "Invalid input mode 0x%08X", mode);
+            return 0;
     }
-
-    _glfwInputError(GLFW_INVALID_ENUM, "Invalid input mode 0x%08X", mode);
-    return 0;
 }
 
 GLFWAPI void glfwSetInputMode(GLFWwindow* handle, int mode, int value)
@@ -367,72 +367,79 @@ GLFWAPI void glfwSetInputMode(GLFWwindow* handle, int mode, int value)
 
     _GLFW_REQUIRE_INIT();
 
-    if (mode == GLFW_CURSOR)
+    switch (mode)
     {
-        if (value != GLFW_CURSOR_NORMAL &&
-            value != GLFW_CURSOR_HIDDEN &&
-            value != GLFW_CURSOR_DISABLED)
+        case GLFW_CURSOR:
         {
-            _glfwInputError(GLFW_INVALID_ENUM,
-                            "Invalid cursor mode 0x%08X",
-                            value);
-            return;
-        }
-
-        if (window->cursorMode == value)
-            return;
-
-        window->cursorMode = value;
-
-        _glfwPlatformGetCursorPos(window,
-                                  &window->virtualCursorPosX,
-                                  &window->virtualCursorPosY);
-
-        if (_glfwPlatformWindowFocused(window))
-            _glfwPlatformSetCursorMode(window, value);
-    }
-    else if (mode == GLFW_STICKY_KEYS)
-    {
-        value = value ? GLFW_TRUE : GLFW_FALSE;
-        if (window->stickyKeys == value)
-            return;
-
-        if (!value)
-        {
-            int i;
-
-            // Release all sticky keys
-            for (i = 0;  i <= GLFW_KEY_LAST;  i++)
+            if (value != GLFW_CURSOR_NORMAL &&
+                value != GLFW_CURSOR_HIDDEN &&
+                value != GLFW_CURSOR_DISABLED)
             {
-                if (window->keys[i] == _GLFW_STICK)
-                    window->keys[i] = GLFW_RELEASE;
+                _glfwInputError(GLFW_INVALID_ENUM,
+                                "Invalid cursor mode 0x%08X",
+                                value);
+                return;
             }
-        }
 
-        window->stickyKeys = value ? GLFW_TRUE : GLFW_FALSE;
-    }
-    else if (mode == GLFW_STICKY_MOUSE_BUTTONS)
-    {
-        value = value ? GLFW_TRUE : GLFW_FALSE;
-        if (window->stickyMouseButtons == value)
+            if (window->cursorMode == value)
+                return;
+
+            window->cursorMode = value;
+
+            _glfwPlatformGetCursorPos(window,
+                                      &window->virtualCursorPosX,
+                                      &window->virtualCursorPosY);
+
+            if (_glfwPlatformWindowFocused(window))
+                _glfwPlatformSetCursorMode(window, value);
+
             return;
-
-        if (!value)
-        {
-            int i;
-
-            // Release all sticky mouse buttons
-            for (i = 0;  i <= GLFW_MOUSE_BUTTON_LAST;  i++)
-            {
-                if (window->mouseButtons[i] == _GLFW_STICK)
-                    window->mouseButtons[i] = GLFW_RELEASE;
-            }
         }
 
-        window->stickyMouseButtons = value ? GLFW_TRUE : GLFW_FALSE;
+        case GLFW_STICKY_KEYS:
+        {
+            if (window->stickyKeys == value)
+                return;
+
+            if (!value)
+            {
+                int i;
+
+                // Release all sticky keys
+                for (i = 0;  i <= GLFW_KEY_LAST;  i++)
+                {
+                    if (window->keys[i] == _GLFW_STICK)
+                        window->keys[i] = GLFW_RELEASE;
+                }
+            }
+
+            window->stickyKeys = value ? GLFW_TRUE : GLFW_FALSE;
+            return;
+        }
+
+        case GLFW_STICKY_MOUSE_BUTTONS:
+        {
+            if (window->stickyMouseButtons == value)
+                return;
+
+            if (!value)
+            {
+                int i;
+
+                // Release all sticky mouse buttons
+                for (i = 0;  i <= GLFW_MOUSE_BUTTON_LAST;  i++)
+                {
+                    if (window->mouseButtons[i] == _GLFW_STICK)
+                        window->mouseButtons[i] = GLFW_RELEASE;
+                }
+            }
+
+            window->stickyMouseButtons = value ? GLFW_TRUE : GLFW_FALSE;
+            return;
+        }
     }
-    else
-        _glfwInputError(GLFW_INVALID_ENUM, "Invalid input mode 0x%08X", mode);
+
+    _glfwInputError(GLFW_INVALID_ENUM, "Invalid input mode 0x%08X", mode);
 }
 
 GLFWAPI const char* glfwGetKeyName(int key, int scancode)
@@ -887,31 +894,6 @@ GLFWAPI const char* glfwGetJoystickName(int jid)
         return NULL;
 
     return js->name;
-}
-
-GLFWAPI const char* glfwGetJoystickGUID(int jid)
-{
-    _GLFWjoystick* js;
-
-    assert(jid >= GLFW_JOYSTICK_1);
-    assert(jid <= GLFW_JOYSTICK_LAST);
-
-    _GLFW_REQUIRE_INIT_OR_RETURN(NULL);
-
-    if (jid < 0 || jid > GLFW_JOYSTICK_LAST)
-    {
-        _glfwInputError(GLFW_INVALID_ENUM, "Invalid joystick ID %i", jid);
-        return NULL;
-    }
-
-    js = _glfw.joysticks + jid;
-    if (!js->present)
-        return NULL;
-
-    if (!_glfwPlatformPollJoystick(js, _GLFW_POLL_PRESENCE))
-        return NULL;
-
-    return js->guid;
 }
 
 GLFWAPI GLFWjoystickfun glfwSetJoystickCallback(GLFWjoystickfun cbfun)

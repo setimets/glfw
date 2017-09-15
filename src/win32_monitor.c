@@ -33,27 +33,6 @@
 #include <malloc.h>
 
 
-// Callback for EnumDisplayMonitors in createMonitor
-//
-static BOOL CALLBACK monitorCallback(HMONITOR handle,
-                                     HDC dc,
-                                     RECT* rect,
-                                     LPARAM data)
-{
-    MONITORINFOEXW mi;
-    ZeroMemory(&mi, sizeof(mi));
-    mi.cbSize = sizeof(mi);
-
-    if (GetMonitorInfoW(handle, (MONITORINFO*) &mi))
-    {
-        _GLFWmonitor* monitor = (_GLFWmonitor*) data;
-        if (wcscmp(mi.szDevice, monitor->win32.adapterName) == 0)
-            monitor->win32.handle = handle;
-    }
-
-    return TRUE;
-}
-
 // Create monitor from an adapter and (optionally) a display
 //
 static _GLFWmonitor* createMonitor(DISPLAY_DEVICEW* adapter,
@@ -62,8 +41,6 @@ static _GLFWmonitor* createMonitor(DISPLAY_DEVICEW* adapter,
     _GLFWmonitor* monitor;
     char* name;
     HDC dc;
-    DEVMODEW dm;
-    RECT rect;
 
     if (display)
         name = _glfwCreateUTF8FromWideStringWin32(display->DeviceString);
@@ -101,16 +78,6 @@ static _GLFWmonitor* createMonitor(DISPLAY_DEVICEW* adapter,
                             NULL, NULL);
     }
 
-    ZeroMemory(&dm, sizeof(dm));
-    dm.dmSize = sizeof(dm);
-    EnumDisplaySettingsW(adapter->DeviceName, ENUM_CURRENT_SETTINGS, &dm);
-
-    rect.left   = dm.dmPosition.x;
-    rect.top    = dm.dmPosition.y;
-    rect.right  = dm.dmPosition.x + dm.dmPelsWidth;
-    rect.bottom = dm.dmPosition.y + dm.dmPelsHeight;
-
-    EnumDisplayMonitors(NULL, &rect, monitorCallback, (LPARAM) monitor);
     return monitor;
 }
 
@@ -142,8 +109,8 @@ void _glfwPollMonitorsWin32(void)
     {
         int type = _GLFW_INSERT_LAST;
 
-        ZeroMemory(&adapter, sizeof(adapter));
-        adapter.cb = sizeof(adapter);
+        ZeroMemory(&adapter, sizeof(DISPLAY_DEVICEW));
+        adapter.cb = sizeof(DISPLAY_DEVICEW);
 
         if (!EnumDisplayDevicesW(NULL, adapterIndex, &adapter, 0))
             break;
@@ -156,8 +123,8 @@ void _glfwPollMonitorsWin32(void)
 
         for (displayIndex = 0;  ;  displayIndex++)
         {
-            ZeroMemory(&display, sizeof(display));
-            display.cb = sizeof(display);
+            ZeroMemory(&display, sizeof(DISPLAY_DEVICEW));
+            display.cb = sizeof(DISPLAY_DEVICEW);
 
             if (!EnumDisplayDevicesW(adapter.DeviceName, displayIndex, &display, 0))
                 break;
@@ -244,7 +211,7 @@ GLFWbool _glfwSetVideoModeWin32(_GLFWmonitor* monitor, const GLFWvidmode* desire
         return GLFW_TRUE;
 
     ZeroMemory(&dm, sizeof(dm));
-    dm.dmSize = sizeof(dm);
+    dm.dmSize = sizeof(DEVMODEW);
     dm.dmFields           = DM_PELSWIDTH | DM_PELSHEIGHT | DM_BITSPERPEL |
                             DM_DISPLAYFREQUENCY;
     dm.dmPelsWidth        = best->width;
@@ -309,19 +276,19 @@ void _glfwRestoreVideoModeWin32(_GLFWmonitor* monitor)
 
 void _glfwPlatformGetMonitorPos(_GLFWmonitor* monitor, int* xpos, int* ypos)
 {
-    DEVMODEW dm;
-    ZeroMemory(&dm, sizeof(dm));
-    dm.dmSize = sizeof(dm);
+    DEVMODEW settings;
+    ZeroMemory(&settings, sizeof(DEVMODEW));
+    settings.dmSize = sizeof(DEVMODEW);
 
     EnumDisplaySettingsExW(monitor->win32.adapterName,
                            ENUM_CURRENT_SETTINGS,
-                           &dm,
+                           &settings,
                            EDS_ROTATEDMODE);
 
     if (xpos)
-        *xpos = dm.dmPosition.x;
+        *xpos = settings.dmPosition.x;
     if (ypos)
-        *ypos = dm.dmPosition.y;
+        *ypos = settings.dmPosition.y;
 }
 
 GLFWvidmode* _glfwPlatformGetVideoModes(_GLFWmonitor* monitor, int* count)
@@ -337,8 +304,8 @@ GLFWvidmode* _glfwPlatformGetVideoModes(_GLFWmonitor* monitor, int* count)
         GLFWvidmode mode;
         DEVMODEW dm;
 
-        ZeroMemory(&dm, sizeof(dm));
-        dm.dmSize = sizeof(dm);
+        ZeroMemory(&dm, sizeof(DEVMODEW));
+        dm.dmSize = sizeof(DEVMODEW);
 
         if (!EnumDisplaySettingsW(monitor->win32.adapterName, modeIndex, &dm))
             break;
@@ -404,8 +371,9 @@ GLFWvidmode* _glfwPlatformGetVideoModes(_GLFWmonitor* monitor, int* count)
 void _glfwPlatformGetVideoMode(_GLFWmonitor* monitor, GLFWvidmode* mode)
 {
     DEVMODEW dm;
-    ZeroMemory(&dm, sizeof(dm));
-    dm.dmSize = sizeof(dm);
+
+    ZeroMemory(&dm, sizeof(DEVMODEW));
+    dm.dmSize = sizeof(DEVMODEW);
 
     EnumDisplaySettingsW(monitor->win32.adapterName, ENUM_CURRENT_SETTINGS, &dm);
 

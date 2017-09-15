@@ -130,8 +130,6 @@ information on what to include when reporting a bug.
   SDL\_GameControllerDB format (#900)
 - Added `glfwJoystickIsGamepad` function for querying whether a joystick has
   a gamepad mapping (#900)
-- Added `glfwGetJoystickGUID` function for querying the SDL compatible GUID of
-  a joystick (#900)
 - Added `glfwGetGamepadName` function for querying the name provided by the
   gamepad mapping (#900)
 - Added `glfwGetGamepadState` function, `GLFW_GAMEPAD_*` and `GLFWgamepadstate`
@@ -145,9 +143,7 @@ information on what to include when reporting a bug.
 - Added `glfwSetWindowAttrib` function for changing window attributes (#537)
 - Added `glfwGetJoystickHats` function for querying joystick hats
   (#889,#906,#934)
-- Added `glfwInitHint` and `glfwInitHintString` for setting initialization hints
-- Added `glfwGetX11SelectionString` and `glfwSetX11SelectionString`
-  functions for accessing X11 primary selection (#894,#1056)
+- Added `glfwInitHint` function for setting library initialization hints
 - Added headless [OSMesa](http://mesa3d.org/osmesa.html) backend (#850)
 - Added definition of `GLAPIENTRY` to public header
 - Added `GLFW_CENTER_CURSOR` window hint for controlling cursor centering
@@ -158,8 +154,6 @@ information on what to include when reporting a bug.
 - Added macOS specific `GLFW_COCOA_GRAPHICS_SWITCHING` window hint (#377,#935)
 - Added macOS specific `GLFW_COCOA_CHDIR_RESOURCES` init hint
 - Added macOS specific `GLFW_COCOA_MENUBAR` init hint
-- Added X11 specific `GLFW_X11_WM_CLASS_NAME` and `GLFW_X11_WM_CLASS_CLASS` init
-  hints (#893)
 - Added `GLFW_INCLUDE_ES32` for including the OpenGL ES 3.2 header
 - Added `GLFW_OSMESA_CONTEXT_API` for creating OpenGL contexts with
   [OSMesa](https://www.mesa3d.org/osmesa.html) (#281)
@@ -175,7 +169,6 @@ information on what to include when reporting a bug.
 - Bugfix: The scancode for synthetic key release events was always zero
 - [Win32] Added system error strings to relevant GLFW error descriptions (#733)
 - [Win32] Moved to `WM_INPUT` for disabled cursor mode motion input (#125)
-- [Win32] Removed XInput circular deadzone from joystick axis data (#1045)
 - [Win32] Bugfix: Undecorated windows could not be iconified by the user (#861)
 - [Win32] Bugfix: Deadzone logic could underflow with some controllers (#910)
 - [Win32] Bugfix: Bitness test in `FindVulkan.cmake` was VS specific (#928)
@@ -189,11 +182,6 @@ information on what to include when reporting a bug.
 - [Win32] Bugfix: Monitors with no display devices were not enumerated (#960)
 - [Win32] Bugfix: Monitor events were not emitted (#784)
 - [Win32] Bugfix: The Cygwin DLL was installed to the wrong directory (#1035)
-- [Win32] Bugfix: Normalization of axis data via XInput was incorrect (#1045)
-- [Win32] Bugfix: `glfw3native.h` would undefine a foreign `APIENTRY` (#1062)
-- [Win32] Bugfix: Disabled cursor mode prevented use of caption buttons
-                  (#650,#1071)
-- [Win32] Bugfix: Returned key names did not match other platforms (#943)
 - [X11] Moved to XI2 `XI_RawMotion` for disable cursor mode motion input (#125)
 - [X11] Replaced `_GLFW_HAS_XF86VM` compile-time option with dynamic loading
 - [X11] Bugfix: `glfwGetVideoMode` would segfault on Cygwin/X
@@ -207,8 +195,6 @@ information on what to include when reporting a bug.
 - [Linux] Moved to evdev for joystick input (#906,#1005)
 - [Linux] Bugfix: Event processing did not detect joystick disconnection (#932)
 - [Linux] Bugfix: The joystick device path could be truncated (#1025)
-- [Linux] Bugfix: `glfwInit` would fail if inotify creation failed (#833)
-- [Linux] Bugfix: `strdup` was used without any required feature macro (#1055)
 - [Cocoa] Added support for Vulkan window surface creation via
           [MoltenVK](https://moltengl.com/moltenvk/) (#870)
 - [Cocoa] Added support for loading a `MainMenu.nib` when available
@@ -226,10 +212,6 @@ information on what to include when reporting a bug.
 - [Cocoa] Bugfix: Value range was ignored for joystick hats and buttons (#888)
 - [Cocoa] Bugfix: Full screen framebuffer was incorrectly sized for some video
                   modes (#682)
-- [Cocoa] Bugfix: A string object for IME was updated non-idiomatically (#1050)
-- [Cocoa] Bugfix: A hidden or disabled cursor would become visible when a user
-                  notification was shown (#971,#1028)
-- [Cocoa] Bugfix: Some characters did not repeat due to Press and Hold (#1010)
 - [WGL] Added support for `WGL_EXT_colorspace` for OpenGL ES contexts
 - [WGL] Added support for `WGL_ARB_create_context_no_error`
 - [GLX] Added support for `GLX_ARB_create_context_no_error`
@@ -263,8 +245,9 @@ GLFW exists because people around the world donated their time and lent their
 skills.
 
  - Bobyshev Alexander
+ - artblanc
+ - arturo
  - Matt Arsenault
- - David Avedissian
  - Keith Bauer
  - John Bartholomew
  - Niklas Behrens
@@ -273,16 +256,11 @@ skills.
  - Doug Binks
  - blanco
  - Kyle Brenneman
- - Rok Breulj
  - Martin Capitanio
  - David Carlier
- - Arturo Castro
  - Chi-kwan Chan
- - Ian Clarkson
  - Michał Cichoń
  - Lambert Clara
- - Yaron Cohen-Tal
- - Omar Cornut
  - Andrew Corrigan
  - Noel Cower
  - Jason Daly
@@ -294,8 +272,6 @@ skills.
  - Mario Dorn
  - Jonathan Dummer
  - Ralph Eastwood
- - Fredrik Ehnbom
- - Robin Eklind
  - Siavash Eliasi
  - Felipe Ferreira
  - Michael Fogleman
@@ -305,7 +281,6 @@ skills.
  - Marcus Geelnard
  - Eloi Marín Gratacós
  - Stefan Gustavson
- - Jonathan Hale
  - Sylvain Hellegouarch
  - Matthew Henry
  - heromyth
@@ -318,22 +293,20 @@ skills.
  - Toni Jovanoski
  - Arseny Kapoulkine
  - Osman Keskin
- - Josh Kilmer
  - Cameron King
  - Peter Knut
  - Christoph Kubisch
- - Yuri Kunde Schlesner
  - Konstantin Käfer
  - Eric Larson
  - Robin Leffmann
  - Glenn Lewis
  - Shane Liesegang
  - Eyal Lotem
+ - Дмитри Малышев
+ - Martins Mozeiko
  - Tristam MacDonald
  - Hans Mackowiak
- - Дмитри Малышев
  - Zbigniew Mandziejewicz
- - Célestin Marot
  - Kyle McDonald
  - David Medlock
  - Bryce Mehring
@@ -345,15 +318,10 @@ skills.
  - Bruce Mitchener
  - Jack Moffitt
  - Jeff Molofee
- - Pierre Morel
  - Jon Morton
  - Pierre Moulon
- - Martins Mozeiko
  - Julian Møller
- - ndogxj
- - Kristian Nielsen
  - Kamil Nowakowski
- - Denis Ovod
  - Ozzy
  - Andri Pálsson
  - Peoro
@@ -363,34 +331,28 @@ skills.
  - Orson Peters
  - Emmanuel Gil Peyrot
  - Cyril Pichard
- - Keith Pitt
- - Stanislav Podgorskiy
- - Alexandre Pretyman
+ - Pieroman
  - Philip Rideout
- - Eddie Ringle
  - Jorge Rodriguez
  - Ed Ropple
  - Aleksey Rybalkin
  - Riku Salminen
  - Brandon Schaefer
  - Sebastian Schuberth
- - Christian Sdunek
  - Matt Sealey
+ - SephiRok
  - Steve Sexton
- - Arkady Shapkin
+ - Systemcluster
  - Yoshiki Shibukawa
  - Dmitri Shuralyov
  - Daniel Skorupski
  - Bradley Smith
  - Patrick Snape
- - Erlend Sogge Heggen
  - Julian Squires
  - Johannes Stein
- - Pontus Stenetorp
  - Michael Stocker
  - Justin Stoecker
  - Elviss Strazdins
- - Paul Sultana
  - Nathan Sweet
  - TTK-Bandit
  - Sergey Tikhomirov
@@ -400,7 +362,6 @@ skills.
  - Matthew Turner
  - urraka
  - Elias Vanderstuyft
- - Stef Velzel
  - Jari Vetoniemi
  - Ricardo Vieira
  - Nicholas Vitovitch
@@ -410,8 +371,8 @@ skills.
  - Xo Wang
  - Jay Weisskopf
  - Frank Wille
+ - yuriks
  - Ryogo Yoshimura
- - Andrey Zholos
  - Santi Zupancic
  - Jonas Ådahl
  - Lasse Öörni
